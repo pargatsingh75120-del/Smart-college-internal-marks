@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🎓 College Internal Marks System (with ML Colab helper)</title>
+
+  <!-- SheetJS for Excel read/write -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- html2canvas + jsPDF for PDF export of performance card -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Chart.js for charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* ---------- Page / watermark ---------- */
+    :root {
+      --panel-bg: rgba(0,0,0,0.7);
+      --accent: #00a6ff;
+      --muted: #dfefff;
+
+      /* modern login variables */
+      --bg-gradient: linear-gradient(135deg, #eaf6ff, #dfeeff);
+      --card-bg: rgba(255,255,255,0.95);
+      --primary: #1976d2;
+      --primary-dark: #0d47a1;
+      --text-dark: #212121;
+      --shadow: 0 8px 30px rgba(10, 20, 40, 0.12);
+      --soft-card-bg: rgba(255,255,255,0.06);
+    }
+
+    html,body {
+      height: 100%;
+      margin: 0;
+      font-family: "Inter", "Poppins", Arial, sans-serif;
+      background: url('baba farid clg logo.jpg') no-repeat center center fixed;
+      background-size: 50%;
+      background-color: #f6f8fa;
+    }
+
+    header {
+      background: rgba(0,0,0,0.75);
+      color: white;
+      padding: 18px 12px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+    }
+
+    main {
+      min-height: calc(100vh - 72px);
+      padding: 22px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    /* Panel: keeps existing dashboard look */
+    .panel {
+      width: 100%;
+      max-width: 1100px;
+      background: rgba(0,0,0,0.62);
+      padding: 22px;
+      border-radius: 12px;
+      color: #fff;
+      box-shadow: 0 6px 30px rgba(0,0,0,0.35);
+    }
+
+    h2 { margin: 0 0 12px 0; color: var(--accent); }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    label { font-size: 13px; color: #e8f6ff; display:block; margin-bottom:6px; }
+
+    input[type="text"], input[type="number"], input[type="password"], select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .col { flex: 1 1 200px; min-width: 140px; }
+
+    button {
+      background: linear-gradient(90deg,#00a6ff,#0077cc);
+      color: white;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    button:active { transform: translateY(1px); }
+    button.secondary {
+      background: linear-gradient(90deg,#ff8a00,#ff5a00);
+    }
+    button.flat {
+      background: transparent;
+      color: #e7f5ff;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      color: #fff;
+    }
+
+    th, td {
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 8px 10px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    th {
+      background: rgba(0,0,0,0.5);
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .edit-input {
+      width: 70px;
+      padding: 6px;
+      border-radius: 6px;
+      border: none;
+      text-align: center;
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+    }
+
+    .actions { display:flex; gap:8px; justify-content:center; }
+
+    .small { padding:6px 8px; font-size:13px; border-radius:6px; }
+
+    .info {
+      background: rgba(255,255,255,0.04);
+      border-left: 4px solid rgba(255,255,255,0.08);
+      padding: 10px;
+      margin-top: 12px;
+      font-size: 13px;
+      color: #e6f7ff;
+    }
+
+    footer { margin-top: 14px; text-align:center; color: rgba(255,255,255,0.8); font-size:13px; }
+
+    .top-actions {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:flex-end;
+      margin-bottom:12px;
+    }
+
+    /* ---------- Modern Login Card (elegant + minimal) ---------- */
+    .login-wrap {
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      width:100%;
+      margin-bottom: 18px;
+    }
+
+    .login-card {
+      width: 380px;
+      max-width: 96%;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      text-align: center;
+      backdrop-filter: blur(6px);
+      animation: fadeInUp .6s ease both;
+      border: 1px solid rgba(255,255,255,0.6);
+      margin: 0 auto 18px;
+    }
+
+    @keyframes fadeInUp {
+      from { transform: translateY(18px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .login-title {
+      font-size: 1.6rem;
+      color: var(--primary-dark);
+      margin: 0 0 6px;
+      font-weight: 700;
+    }
+    .login-sub { color:#445; margin:0 0 16px; font-size:0.95rem; }
+
+    .role-switch {
+      display:flex;
+      gap:8px;
+      justify-content:center;
+      margin-bottom:14px;
+    }
+    .role-switch button {
+      background: transparent;
+      border: 1px solid rgba(33,33,33,0.06);
+      padding: 8px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight:600;
+      color: var(--text-dark);
+      transition: all .18s;
+    }
+    .role-switch button.active {
+      background: linear-gradient(90deg,var(--primary),var(--primary-dark));
+      color: #fff;
+      box-shadow: 0 6px 18px rgba(13,71,161,0.15);
+      transform: translateY(-2px);
+    }
+
+    .login-group { text-align:left; margin-bottom:12px; }
+    .login-group label { font-weight:600; color: #333; margin-bottom:6px; display:block; }
+    .login-input {
+      width:100%;
+      padding:10px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(24,118,210,0.08);
+      outline:none;
+      font-size:14px;
+      box-sizing:border-box;
+    }
+    .login-btn {
+      width:100%;
+      padding:12px;
+      border-radius:12px;
+      border:none;
+      font-size:16px;
+      font-weight:700;
+      background: linear-gradient(90deg,var(--primary),var(--primary-dark));
+      color:#fff;
+      cursor:pointer;
+      transition: transform .12s, box-shadow .12s;
+    }
+    .login-btn:active { transform:translateY(1px); }
+
+    .login-note { font-size:13px; color:#333; margin-top:10px; }
+
+    /* Chart card styles (soft rounded card at bottom) */
+    .chart-card {
+      margin-top: 22px;
+      background: var(--soft-card-bg);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(5,10,20,0.12);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .chart-card h3 { margin:0 0 8px 0; color:var(--muted); }
+    .chart-actions { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-bottom:12px; flex-wrap:wrap; }
+
+    @media (max-width:900px) {
+      .col { flex: 1 1 100%; }
+      .actions { flex-wrap:wrap; }
+      .panel { padding:16px; }
+      .top-actions { justify-content:center; }
+      .login-card { margin-bottom: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>🎓 College Internal Marks System — Baba Farid College</header>
+
+  <main>
+    <section class="panel" aria-labelledby="panelTitle">
+
+      <!-- MODERN LOGIN (replaces old loginPanel) -->
+      <div class="login-wrap" id="loginPanel">
+        <div class="login-card" role="region" aria-label="Login card">
+          <h2 class="login-title">Welcome Back</h2>
+          <p class="login-sub">Sign in to continue to the Internal Marks System</p>
+
+          <div class="role-switch" aria-hidden="false">
+            <button id="studentBtn" class="active" onclick="switchRole('student')">Student</button>
+            <button id="teacherBtn" onclick="switchRole('teacher')">Teacher</button>
+          </div>
+
+          <div class="login-group">
+            <label for="username">Username / Name</label>
+            <input id="username" class="login-input" type="text" placeholder="teacher OR student name" />
+          </div>
+
+          <div class="login-group">
+            <label for="password">Password / Roll No</label>
+            <input id="password" class="login-input" type="password" placeholder="password or roll no" />
+          </div>
+
+          <button id="signBtn" class="login-btn" onclick="login()">Login</button>
+
+          <div class="login-note">
+            <strong>Teacher credentials:</strong> <code>teacher / 1234</code> — Students login using <em>name</em> and <em>roll no</em>.
+          </div>
+        </div>
+      </div>
+
+      <!-- TEACHER DASHBOARD (hidden until teacher logs in) -->
+      <div id="teacherPanel" style="display:none; margin-top:14px;">
+        <div class="top-actions">
+          <div style="flex:1"><h2 style="margin:0">Teacher Dashboard</h2></div>
+          <div style="flex:0"><button class="flat small" onclick="logout()">🚪 Logout</button></div>
+        </div>
+
+        <!-- Data entry area -->
+        <div class="row">
+          <div class="col">
+            <label>Student Name</label>
+            <input id="studentName" type="text" placeholder="e.g. Aman Kumar" />
+          </div>
+          <div class="col">
+            <label>Roll No</label>
+            <input id="rollNo" type="text" placeholder="e.g. 2018001" />
+          </div>
+          <div class="col">
+            <label>Subject</label>
+            <input id="subject" type="text" placeholder="e.g. DBMS" />
+          </div>
+          <div class="col">
+            <label>Test (30)</label>
+            <input id="test" type="number" min="0" max="30" />
+          </div>
+          <div class="col">
+            <label>Assignment (30)</label>
+            <input id="assignment" type="number" min="0" max="30" />
+          </div>
+          <div class="col">
+            <label>Quiz (20)</label>
+            <input id="quiz" type="number" min="0" max="20" />
+          </div>
+          <div class="col">
+            <label>Viva (20)</label>
+            <input id="viva" type="number" min="0" max="20" />
+          </div>
+        </div>
+
+        <div class="row" style="align-items:center;">
+          <div style="flex:1;">
+            <button onclick="addStudent()">➕ Add Student</button>
+            <button class="flat small" onclick="document.getElementById('excelFile').click()">📂 Upload Excel</button>
+            <button class="flat small" onclick="exportUpdatedExcel()">💾 Export Excel</button>
+            <button class="small" onclick="openColabWithData()">🤖 Send to Colab</button>
+            <button class="secondary small" onclick="downloadColabScript()">📥 Download Colab Script</button>
+          </div>
+
+          <div style="flex:0 0 260px;">
+            <label>Upload file (.xlsx, .xls)</label>
+            <input id="excelFile" type="file" accept=".xlsx,.xls" onchange="onExcelFileSelected(event)" />
+          </div>
+        </div>
+
+        <div class="info" id="importLog" style="display:none;"></div>
+
+        <!-- Data table -->
+        <div style="overflow:auto; margin-top:12px;">
+          <table id="marksTable" role="table" aria-label="Marks table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Roll No</th>
+                <th>Subject</th>
+                <th>Test (30)</th>
+                <th>Assignment (30)</th>
+                <th>Quiz (20)</th>
+                <th>Viva (20)</th>
+                <th>Total</th>
+                <th>%</th>
+                <th>Internal (40)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Chart card at bottom -->
+        <div class="chart-card" id="chartCardBottom">
+          <div style="display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;">
+            <h3 style="margin:0">Class Performance Overview</h3>
+            <div class="chart-actions">
+              <button class="small" onclick="renderClassChart()">Predict Class Performance</button>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <canvas id="classPerformanceChart" aria-label="Class performance chart" width="520" height="360"></canvas>
+          </div>
+
+          <div style="margin-top:10px; color:var(--muted); font-size:13px; text-align:center;">
+            Categories: Excellent (80–100%), Good (60–79%), Average (40–59%), Poor (&lt;40%)
+          </div>
+        </div>
+
+      </div>
+
+      <!-- STUDENT PANEL (hidden until student logs in) -->
+      <div id="studentPanel" style="display:none; margin-top:14px;">
+        <div class="top-actions">
+          <div style="flex:1"><h2 style="margin:0">Student Performance</h2></div>
+          <div style="flex:0"><button class="flat small" onclick="logout()">🚪 Logout</button></div>
+        </div>
+
+        <div id="cardContainer"></div>
+
+        <div style="margin-top:10px;">
+          <button class="small" onclick="downloadCard()">📄 Download Card (PDF)</button>
+        </div>
+      </div>
+
+      <footer style="margin-top:14px;">
+        <small>Built for demo — export Excel and upload to your Colab notebook for model training. </small>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    /**************************************************************************
+     * Unified JS: modern login card + login persistence + full marks system
+     * plus Teacher-side class performance pie chart (placed at bottom card)
+     **************************************************************************/
+
+    // data array
+    let students = []; // each: {name, roll, subject, test, assignment, quiz, viva, total, percentage, internal}
+
+    // login role state used by modern login UI
+    let currentRole = "student";
+
+    // Chart instance holder for class chart
+    let classChart = null;
+
+    // utility: clamp
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, Number(v)||0)); }
+
+    // ---------- role switch (modern UI) ----------
+    function switchRole(selected){
+      currentRole = selected;
+      document.getElementById('studentBtn').classList.toggle('active', selected === 'student');
+      document.getElementById('teacherBtn').classList.toggle('active', selected === 'teacher');
+    }
+
+    // ---------- LOGIN STATE (localStorage) ----------
+    function saveLogin(role, username) {
+      try { localStorage.setItem("loginRole", role); localStorage.setItem("loginUser", username); } catch(e) {}
+    }
+    function clearLogin() {
+      try { localStorage.removeItem("loginRole"); localStorage.removeItem("loginUser"); } catch(e) {}
+    }
+
+    // ---------- show/hide helpers ----------
+    function showTeacherPanel(){
+      document.getElementById("loginPanel").style.display = "none";
+      document.getElementById("teacherPanel").style.display = "block";
+      document.getElementById("studentPanel").style.display = "none";
+      setTimeout(()=>document.getElementById("studentName").focus(),120);
+      // render chart on show (useful if students already exist)
+      renderClassChart();
+    }
+    function showStudentPanel(found){
+      document.getElementById("loginPanel").style.display = "none";
+      document.getElementById("teacherPanel").style.display = "none";
+      document.getElementById("studentPanel").style.display = "block";
+      showStudentCard(found);
+    }
+
+    // restore login if present
+    window.addEventListener("DOMContentLoaded", () => {
+      const role = localStorage.getItem("loginRole");
+      const user = localStorage.getItem("loginUser");
+      if (role && user) {
+        if (role === "teacher") {
+          switchRole('teacher');
+          showTeacherPanel();
+        } else if (role === "student") {
+          const found = students.find(s => s.name.toLowerCase() === user.toLowerCase());
+          if (found) {
+            switchRole('student');
+            showStudentPanel(found);
+          } else {
+            clearLogin();
+          }
+        }
+      }
+    });
+
+    // ---------- LOGIN ----------
+    function login(){
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if(!username || !password){ alert("Enter credentials"); return; }
+
+      if(currentRole === "teacher"){
+        if(username === "teacher" && password === "1234"){
+          saveLogin("teacher", username);
+          showTeacherPanel();
+        } else {
+          alert("Invalid teacher credentials");
+        }
+      } else {
+        // student login: find by name and roll
+        const found = students.find(s => s.name.toLowerCase() === username.toLowerCase() && s.roll.toString() === password);
+        if(found){
+          saveLogin("student", username);
+          showStudentPanel(found);
+        } else {
+          alert("Student not found. Make sure marks are already entered or uploaded and credentials are correct.");
+        }
+      }
+    }
+
+    // ---------- LOGOUT ----------
+    function logout(){
+      clearLogin();
+      document.getElementById("teacherPanel").style.display = "none";
+      document.getElementById("studentPanel").style.display = "none";
+      document.getElementById("loginPanel").style.display = "flex";
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      switchRole('student');
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      if(classChart){ classChart.destroy(); classChart = null; }
+      document.getElementById("cardContainer").innerHTML = "";
+    }
+
+    // ---------- ADD STUDENT (UI) ----------
+    function addStudent(){
+      const name = document.getElementById("studentName").value.trim();
+      const roll = document.getElementById("rollNo").value.trim();
+      const subject = document.getElementById("subject").value.trim();
+      const test = clamp(document.getElementById("test").value, 0, 30);
+      const assignment = clamp(document.getElementById("assignment").value, 0, 30);
+      const quiz = clamp(document.getElementById("quiz").value, 0, 20);
+      const viva = clamp(document.getElementById("viva").value, 0, 20);
+
+      if(!name || !roll || !subject){ alert("Fill name, roll and subject"); return; }
+
+      const total = test + assignment + quiz + viva;
+      const percentage = (total/100)*100;
+      const internal = (percentage * 40)/100;
+
+      students.push({ name, roll, subject, test, assignment, quiz, viva, total, percentage, internal });
+      updateTable();
+      // update chart
+      renderClassChart();
+      // clear inputs
+      ["studentName","rollNo","subject","test","assignment","quiz","viva"].forEach(id=>document.getElementById(id).value = "");
+      document.getElementById("studentName").focus();
+    }
+
+    // ---------- TABLE RENDERING ----------
+    function updateTable(){
+      const tbody = document.querySelector("#marksTable tbody");
+      tbody.innerHTML = "";
+      students.forEach((s,i)=>{
+        // recompute to be safe
+        s.test = clamp(s.test,0,30);
+        s.assignment = clamp(s.assignment,0,30);
+        s.quiz = clamp(s.quiz,0,20);
+        s.viva = clamp(s.viva,0,20);
+        s.total = s.test + s.assignment + s.quiz + s.viva;
+        s.percentage = (s.total/100)*100;
+        s.internal = (s.percentage * 40)/100;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td style="text-align:left">${escapeHtml(String(s.name))}</td>
+          <td>${escapeHtml(String(s.roll))}</td>
+          <td>${escapeHtml(String(s.subject))}</td>
+          <td><input class="edit-input" type="number" min="0" max="30" value="${s.test}" onchange="onEdit(${i},'test',this.value)"></td>
+          <td><input class="edit-input" type="number" min="0" max="30" value="${s.assignment}" onchange="onEdit(${i},'assignment',this.value)"></td>
+          <td><input class="edit-input" type="number" min="0" max="20" value="${s.quiz}" onchange="onEdit(${i},'quiz',this.value)"></td>
+          <td><input class="edit-input" type="number" min="0" max="20" value="${s.viva}" onchange="onEdit(${i},'viva',this.value)"></td>
+          <td>${s.total}</td>
+          <td>${s.percentage.toFixed(1)}%</td>
+          <td>${s.internal.toFixed(1)}</td>
+          <td class="actions">
+            <button class="small edit-btn" onclick="openEdit(${i})">View</button>
+            <button class="small delete-btn" onclick="removeRow(${i})">Delete</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(unsafe){
+      if(!unsafe) return "";
+      return String(unsafe).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]; });
+    }
+
+    function onEdit(index, field, val){
+      const max = (field === "quiz" || field === "viva") ? 20 : 30;
+      students[index][field] = clamp(val, 0, max);
+      updateTable();
+      // update chart live on edit
+      renderClassChart();
+    }
+
+    function openEdit(i){
+      const s = students[i];
+      showStudentCard(s);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function removeRow(i){
+      if(!confirm("Delete this row?")) return;
+      students.splice(i,1);
+      updateTable();
+      // update chart after deletion
+      renderClassChart();
+    }
+
+    // ---------- STUDENT CARD (PDF capable) ----------
+    function showStudentCard(student){
+      const container = document.getElementById("cardContainer");
+      if(!container) return;
+      const feedback = generateFeedback(student);
+      container.innerHTML = `
+        <div style="background:rgba(0,0,0,0.6);padding:14px;border-radius:10px;">
+          <h3 style="color:var(--accent);margin-top:0">🎓 Performance Card</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div style="flex:1;"><strong>Name:</strong> ${escapeHtml(student.name)}</div>
+            <div style="flex:1;"><strong>Roll:</strong> ${escapeHtml(student.roll)}</div>
+            <div style="flex:1;"><strong>Subject:</strong> ${escapeHtml(student.subject)}</div>
+          </div>
+          <hr style="border-color:rgba(255,255,255,0.06)"/>
+          <div><strong>Test:</strong> ${student.test} /30</div>
+          <div><strong>Assignment:</strong> ${student.assignment} /30</div>
+          <div><strong>Quiz:</strong> ${student.quiz} /20</div>
+          <div><strong>Viva:</strong> ${student.viva} /20</div>
+          <hr style="border-color:rgba(255,255,255,0.06)"/>
+          <div><strong>Total:</strong> ${student.total}/100</div>
+          <div><strong>Percentage:</strong> ${student.percentage.toFixed(1)}%</div>
+          <div><strong>Internal (40):</strong> ${student.internal.toFixed(1)}</div>
+          <div class="info" style="margin-top:10px">${feedback}</div>
+        </div>`;
+    }
+
+    function generateFeedback(s){
+      const avg = s.percentage;
+      let f="";
+      if(avg>=85) f="🌟 <strong>Excellent performance!</strong>";
+      else if(avg>=70) f="👍 <strong>Good job!</strong>";
+      else if(avg>=50) f="🙂 <strong>Average.</strong> Focus more on weak areas.";
+      else f="⚠️ <strong>Needs improvement.</strong>";
+      let weak=[];
+      if(s.test<15) weak.push("Test");
+      if(s.assignment<15) weak.push("Assignment");
+      if(s.quiz<10) weak.push("Quiz");
+      if(s.viva<10) weak.push("Viva");
+      if(weak.length) f += "<br><br><strong>Weak Areas:</strong> "+weak.join(", ");
+      return f;
+    }
+
+    async function downloadCard(){
+      const { jsPDF } = window.jspdf;
+      const card = document.getElementById("cardContainer");
+      if(!card || card.innerText.trim()===""){ alert("Open a student card first."); return; }
+      const canvas = await html2canvas(card, { scale:2 });
+      const img = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p","mm","a4");
+      const w = pdf.internal.pageSize.getWidth();
+      const h = (canvas.height * w) / canvas.width;
+      pdf.addImage(img,"PNG",0,10,w,h);
+      pdf.save("Performance_Card.pdf");
+    }
+
+    // ---------- CLASS CHART: compute & render ----------
+    function computeClassDistribution(){
+      // categories:
+      // Excellent: 80–100
+      // Good: 60–79
+      // Average: 40–59
+      // Poor: <40
+      const counts = { excellent: 0, good: 0, average: 0, poor: 0 };
+      students.forEach(s => {
+        // ensure percentage computed
+        const p = Number(s.percentage) || 0;
+        if(p >= 80) counts.excellent++;
+        else if(p >= 60) counts.good++;
+        else if(p >= 40) counts.average++;
+        else counts.poor++;
+      });
+      return counts;
+    }
+
+    function renderClassChart(){
+      const counts = computeClassDistribution();
+      const labels = ['Excellent (80–100%)','Good (60–79%)','Average (40–59%)','Poor (<40%)'];
+      const data = [counts.excellent, counts.good, counts.average, counts.poor];
+      const totalStudents = data.reduce((a,b)=>a+b,0);
+
+      const ctx = document.getElementById("classPerformanceChart").getContext("2d");
+      if(classChart){ classChart.destroy(); classChart = null; }
+
+      classChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: [
+              'rgba(75,192,192,0.85)', // excellent - teal
+              'rgba(54,162,235,0.85)', // good - blue
+              'rgba(255,205,86,0.85)', // average - yellow
+              'rgba(255,99,132,0.85)'  // poor - red
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            title: {
+              display: true,
+              text: `Class performance distribution — total students: ${totalStudents}`
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context){
+                  const idx = context.dataIndex;
+                  const val = context.dataset.data[idx] || 0;
+                  const pct = totalStudents ? ((val/totalStudents)*100).toFixed(1) : 0;
+                  return `${context.label}: ${val} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ---------- ROBUST EXCEL PARSER ----------
+    function parseExcelFile(file, callback){
+      const reader = new FileReader();
+      reader.onload = (e)=>{
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type:"array"});
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          callback(null, {rows, sheetName, sheet, workbook});
+        } catch(err){
+          callback(err);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function normalizeKey(k){
+      if(k===null || k===undefined) return "";
+      return String(k).toLowerCase().replace(/\s+/g,"").replace(/[\(\)\.\-_:,\/]/g,"");
+    }
+
+    function parseNumberSmart(raw, fallback=0){
+      if(raw===null||raw===undefined||raw==="") return fallback;
+      let s = String(raw).trim();
+      if(s.includes("/")){
+        const p = s.split("/");
+        const num = Number(p[0].replace(/[^\d.-]/g,""));
+        if(!isNaN(num)) return num;
+      }
+      if(s.indexOf(",")>-1 && s.indexOf(".")===-1) s = s.replace(",",".");
+
+      s = s.replace(/[^\d.\-]/g,"");
+      const n = Number(s);
+      return isNaN(n) ? fallback : n;
+    }
+
+    const possible = {
+      name: ["name","studentname","student","fullname","full name","student_name"],
+      roll: ["roll","rollno","rollnumber","rollnumber","enrollment","id","registrationno","regno"],
+      subject: ["subject","subjectname","sub"],
+      test: ["test","testmarks","test(30)","test30","marks_test","marks-test"],
+      assignment: ["assignment","assignmentmarks","assignment(30)","assignment30","assign","assignments"],
+      quiz: ["quiz","quizmarks","quiz(20)","quiz20","marks_quiz"],
+      viva: ["viva","vivamarks","viva(20)","viva20","viva_marks"]
+    };
+
+    function buildHeaderMap(firstRow){
+      const map = {};
+      Object.keys(firstRow).forEach(k=>{
+        map[normalizeKey(k)] = k;
+      });
+      return map;
+    }
+
+    function readAnyFromRow(row, headerMap, variants){
+      for(const v of variants){
+        const nk = normalizeKey(v);
+        if(headerMap[nk]!==undefined){
+          const orig = headerMap[nk];
+          const val = row[orig];
+          if(val!==undefined && String(val).trim()!=="") return val;
+        }
+      }
+      for(const key of Object.keys(row)){
+        if(normalizeKey(key) === normalizeKey(variants[0])){
+          const val = row[key];
+          if(val!==undefined && String(val).trim()!=="") return val;
+        }
+      }
+      return "";
+    }
+
+    // file input handler
+    function onExcelFileSelected(evt){
+      const file = evt.target.files ? evt.target.files[0] : null;
+      if(!file){ alert("Choose a file first"); return; }
+      parseExcelFile(file, (err, info)=>{
+        if(err){ console.error(err); alert("Failed to parse Excel"); return; }
+        const rows = info.rows;
+        if(!rows || !rows.length){ alert("No rows in sheet"); return; }
+        const headerMap = buildHeaderMap(rows[0]);
+
+        const imported = rows.map(r=>{
+          const rawName = readAnyFromRow(r, headerMap, possible.name);
+          const rawRoll = readAnyFromRow(r, headerMap, possible.roll);
+          const rawSubject = readAnyFromRow(r, headerMap, possible.subject);
+          const rawTest = readAnyFromRow(r, headerMap, possible.test);
+          const rawAssignment = readAnyFromRow(r, headerMap, possible.assignment);
+          const rawQuiz = readAnyFromRow(r, headerMap, possible.quiz);
+          const rawViva = readAnyFromRow(r, headerMap, possible.viva);
+
+          const name = rawName ? String(rawName).trim() : "N/A";
+          const roll = rawRoll ? String(rawRoll).trim() : "N/A";
+          const subject = rawSubject ? String(rawSubject).trim() : "N/A";
+
+          const test = parseNumberSmart(rawTest, 0);
+          const assignment = parseNumberSmart(rawAssignment, 0);
+          const quiz = parseNumberSmart(rawQuiz, 0);
+          const viva = parseNumberSmart(rawViva, 0);
+
+          const testC = clamp(test,0,30);
+          const assignmentC = clamp(assignment,0,30);
+          const quizC = clamp(quiz,0,20);
+          const vivaC = clamp(viva,0,20);
+          const total = testC + assignmentC + quizC + vivaC;
+          const percentage = (total/100)*100;
+          const internal = (percentage * 40)/100;
+
+          return { name, roll, subject, test:testC, assignment:assignmentC, quiz:quizC, viva:vivaC, total, percentage, internal };
+        });
+
+        students = students.concat(imported);
+        updateTable();
+        const log = document.getElementById("importLog");
+        log.style.display = "block";
+        log.innerHTML = `<strong>Imported ${imported.length} rows</strong><br>Detected headers preview: ${Object.keys(headerMap).slice(0,12).map(k=>k+" → "+headerMap[k]).join(", ")}`;
+        alert(`Imported ${imported.length} rows successfully.`);
+        // update chart after import
+        renderClassChart();
+        // scroll to bottom so teacher sees chart
+        setTimeout(()=> {
+          document.getElementById('chartCardBottom').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 220);
+      });
+    }
+
+    // ---------- EXPORT UPDATED EXCEL ----------
+    function exportUpdatedExcel(){
+      if(!students.length){ alert("No data to export"); return; }
+      const out = students.map(s => ({
+        "Name": s.name,
+        "Roll No": s.roll,
+        "Subject": s.subject,
+        "Test": s.test,
+        "Assignment": s.assignment,
+        "Quiz": s.quiz,
+        "Viva": s.viva,
+        "Total": s.total,
+        "Percentage": s.percentage.toFixed(2),
+        "Internal (40)": s.internal.toFixed(2)
+      }));
+      const ws = XLSX.utils.json_to_sheet(out);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Marks");
+      XLSX.writeFile(wb, "student_marks_for_colab.xlsx");
+      alert("Exported student_marks_for_colab.xlsx — you can upload it to Colab now.");
+    }
+
+    // ---------- OPEN COLAB & DOWNLOAD COLAB SCRIPT ----------
+    function openColabWithData(){
+      exportUpdatedExcel();
+      const colabURL = "https://colab.research.google.com/drive/1NqqJUaYlHEJOEskPf_IrQit3X3tZXEY4";
+      window.open(colabURL, "_blank");
+    }
+
+    function downloadColabScript(){
+      const code = `# Colab-ready ML script for Student Internal Marks
+# Upload 'student_marks_for_colab.xlsx' to Colab (Files panel) and run this cell.
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, r2_score
+import joblib
+
+# load
+df = pd.read_excel('student_marks_for_colab.xlsx')
+
+# basic cleaning: lowercase columns, strip spaces
+df.columns = [c.strip().lower().replace(' ', '') for c in df.columns]
+
+# select numeric columns if present
+possible_feats = []
+for c in df.columns:
+    if 'test' in c: possible_feats.append(c)
+    if 'assign' in c: possible_feats.append(c)
+    if 'quiz' in c: possible_feats.append(c)
+    if 'viva' in c: possible_feats.append(c)
+
+# remove duplicates
+possible_feats = list(dict.fromkeys(possible_feats))
+print('Using features:', possible_feats)
+
+# prepare X,y
+X = df[possible_feats].fillna(0)
+# target: internal or compute from total if missing
+if 'internal' in df.columns:
+    y = df['internal'].fillna(0)
+else:
+    if 'total' in df.columns:
+        y = (df['total']/100.0) * 40.0
+    else:
+        # compute total if individual columns exist
+        y = X.sum(axis=1)/100.0 * 40.0
+
+# train-test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# model
+model = RandomForestRegressor(n_estimators=200, random_state=42)
+model.fit(X_train, y_train)
+
+# predict & evaluate
+y_pred = model.predict(X_test)
+print('MAE:', mean_absolute_error(y_test, y_pred))
+print('R2:', r2_score(y_test, y_pred))
+
+# save model
+joblib.dump(model, 'internal_marks_model.pkl')
+print('Model saved as internal_marks_model.pkl')
+
+# Example: predict on entire dataset and output a CSV with predicted internal
+df['predicted_internal'] = model.predict(X)
+df.to_csv('student_marks_with_predictions.csv', index=False)
+print('Predictions saved to student_marks_with_predictions.csv')`;
+      const blob = new Blob([code], {type: 'text/plain'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = "colab_marks_model.py";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      alert("Colab script downloaded: colab_marks_model.py — upload it to Colab or paste into a notebook cell.");
+    }
+
+    // ---------- convenience: seed demo rows (optional) ----------
+    (function seedDemo(){
+      // uncomment to add demo rows on load for testing the chart
+      // students.push({name:"Aman",roll:"101",subject:"DBMS",test:25,assignment:24,quiz:17,viva:18,total:84,percentage:84,internal:33.6});
+      // students.push({name:"Pooja",roll:"102",subject:"ML",test:18,assignment:20,quiz:13,viva:14,total:65,percentage:65,internal:26});
+      // students.push({name:"Ravi",roll:"103",subject:"OS",test:10,assignment:12,quiz:8,viva:9,total:39,percentage:39,internal:15.6});
+      // updateTable(); renderClassChart();
+    })();
+
+  </script>
+
+</body>
+</html>
